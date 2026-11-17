@@ -1,0 +1,61 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write # attach the exe to releases on tags
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.13.8"
+      - run: uv sync --locked
+      - run: uv run python -m unittest -v
+
+      # Start it, let it run, and fail if it died or logged a QML or Python error. The normal run
+      # also exercises the Windows media controls (no session on CI) and the settings file.
+      - name: Smoke test from source
+        shell: pwsh
+        run: |
+          foreach ($mode in @("--demo", "live")) {
+            $argv = @("run", "starsong.py") + $(if ($mode -eq "--demo") { @("--demo") } else { @() })
+            $p = Start-Process uv -ArgumentList $argv -PassThru
+            Start-Sleep 12
+            if ($p.HasExited) { Get-Content $env:LOCALAPPDATA\starsong\starsong.log; throw "exited early ($mode)" }
+            Stop-Process -Id $p.Id -Force; Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force
+            $log = Get-Content $env:LOCALAPPDATA\starsong\starsong.log -Raw
+            Write-Output $log
+            if ($log -match "ERROR|WARNING qml|Traceback") { throw "errors in the log ($mode)" }
+          }
+
+      - run: uv run pyinstaller --noconfirm Starsong.spec
+
+      - name: Smoke test the exe
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\Starsong.exe -ArgumentList "--demo" -PassThru
+          Start-Sleep 20
+          if ($p.HasExited) { Get-Content $env:LOCALAPPDATA\starsong\starsong.log; throw "Starsong.exe exited early" }
+          Stop-Process -Id $p.Id -Force
+          $log = Get-Content $env:LOCALAPPDATA\starsong\starsong.log -Raw
+          Write-Output $log
+          if ($log -match "ERROR|WARNING qml|Traceback") { throw "errors in the log" }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Starsong
+          path: dist/Starsong.exe
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} dist/Starsong.exe --title ${{ github.ref_name }} --generate-notes

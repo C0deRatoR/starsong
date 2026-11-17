@@ -1,0 +1,25 @@
+[project]
+name = "starsong"
+version = "0.1.0"
+description = "Synced lyrics, an album-colour backdrop and a beat-reactive glow for Windows"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "numpy>=2",
+    "pillow>=11",
+    "pyside6-essentials>=6.8",
+    "pyyaml>=6",
+    # Windows media controls and audio loopback; not needed for --demo, so other systems skip them.
+    "soundcard>=0.4.4; sys_platform == 'win32'",
+    "winrt-runtime>=3; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=3; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections>=3; sys_platform == 'win32'",
+    "winrt-Windows.Media.Control>=3; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=3; sys_platform == 'win32'",
+]
+
+[dependency-groups]
+dev = ["pyinstaller>=6.11"]
+
+[tool.uv]
+package = false
